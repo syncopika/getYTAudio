@@ -22,7 +22,7 @@ chrome.devtools.panels.create("My Panel",
 		var button = document.createElement('button');
 		button.innerHTML = "get audio link";
 		button.addEventListener("click", getAudioLink);
-		document.body.appendChild(button);
+		document.getElementById('header').appendChild(button);
 		
 	}
 
@@ -31,70 +31,73 @@ chrome.devtools.panels.create("My Panel",
 
 function getAudioLink(){
 	
-	var s = "looking for the audio data link... this might take some time..."
+	// clear the current stuff in the content div
+	var content = document.getElementById('content');
+	while(content.hasChildNodes()){
+		content.removeChild(content.lastChild);
+	}
+	
+	var s = "looking for the audio data link... there might be duplicates...";
 	var msg = document.createElement('p');
 	msg.innerHTML = s;
-	document.body.appendChild(msg);
+	content.appendChild(msg);
 	
-	setTimeout(function(){
+	// get video duration (and look through HAR log)
+	chrome.devtools.inspectedWindow.eval(
+		"(document.getElementsByClassName('ytp-time-duration')[0]).innerHTML",
+		function(result, exceptionInfo){
+			
+			chrome.devtools.network.getHAR(function(harLog){
 		
-		// get video duration 
-		chrome.devtools.inspectedWindow.eval(
-			"(document.getElementsByClassName('ytp-time-duration')[0]).innerHTML",
-			function(result, exceptionInfo){
+				// we're looking for a url that has the mime type as audio/webm! 
+				// what about if an ad shows up? the ad might get taken 
+				var flag = false;
 				
-				chrome.devtools.network.getHAR(function(harLog){
-			
-					// we're looking for a url that has the mime type as audio/webm! 
-					// what about if an ad shows up? the ad might get taken 
-					var flag = false;
-					
-					var el = document.createElement('p');
-					el.innerHTML = "there are " + harLog.entries.length + " entries in the HAR log.";
-					document.body.appendChild(el);
-					
-					for(var i = 0; i < harLog.entries.length; i++){
-						// files could be of mp4 or webm type! just make sure they're requests for audio 
-						if(harLog.entries[i].request.url.indexOf("mime=audio") > 0){
-							
-							var requestURL = harLog.entries[i].request.url;
-							
-							var url = document.createElement('p');
-							url.innerHTML = requestURL;
-							document.body.appendChild(url);
-							
-							// use regex to correct the start and end numbers to get the whole audio 
-							var regex = /range=[0-9]+-[0-9]+/g;
-							var start = 0;
-							var end = 9999999;
-							var newRange = "range=" + start + "-" + end; 
-							var newURL = requestURL.replace(regex, newRange);
-							
-							var modifiedURL = document.createElement('p');
-							modifiedURL.innerHTML = newURL;
-							document.body.appendChild(modifiedURL);
-
-							flag = true;
-						}
-					}
-					
-					if(!flag){
-						var msg = document.createElement('p');
-						msg.innerHTML = "could not find. :(";
-						document.body.appendChild(msg);
-					}
-					
-					var videoDuration = document.createElement('p');
-					videoDuration.innerHTML = "video duration: " + result;
-					document.body.appendChild(videoDuration);
-					
-				}); // end getHAR
+				var el = document.createElement('p');
+				el.innerHTML = "there are " + harLog.entries.length + " entries in the HAR log.";
+				content.appendChild(el);
 				
-			} // end callback 
-			
-		);
+				for(var i = 0; i < harLog.entries.length; i++){
+					// files could be of mp4 or webm type! just make sure they're requests for audio 
+					if(harLog.entries[i].request.url.indexOf("mime=audio") > 0){
+						
+						var requestURL = harLog.entries[i].request.url;
+						
+						var url = document.createElement('p');
+						url.innerHTML = requestURL;
+						content.appendChild(url);
+						
+						// use regex to correct the start and end numbers to get the whole audio 
+						var regex = /range=[0-9]+-[0-9]+/g;
+						var start = 0;
+						var end = 9999999;
+						var newRange = "range=" + start + "-" + end; 
+						var newURL = requestURL.replace(regex, newRange);
+						
+						var modifiedURL = document.createElement('p');
+						modifiedURL.innerHTML = newURL;
+						content.appendChild(modifiedURL);
 
-	}, 6000); // wait 6 secs - this should be long enough to get the right link...
+						flag = true;
+					}
+				}
+				
+				if(!flag){
+					var msg = document.createElement('p');
+					msg.innerHTML = "could not find. :(";
+					content.appendChild(msg);
+				}
+				
+				var videoDuration = document.createElement('p');
+				videoDuration.innerHTML = "video duration: " + result;
+				content.appendChild(videoDuration);
+				
+			}); // end getHAR
+			
+		} // end callback 
+		
+	);
+
 	
 }
 
