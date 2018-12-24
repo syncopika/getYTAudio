@@ -2,12 +2,37 @@
 
 <head>
 	<title> dev tool extension </title>
+	<meta charset='utf-8'>
+	<style>
+		.rangeSelect{
+			margin-top: 1%;
+		}
+		input{
+			width: 2%;
+		}
+	</style>
 </head>
 
 <body>
 
 	<div id='header'>
 		<h2>hey</h2>
+		<button id='getAudioLink'>get audio link</button>
+		
+		<div class='rangeSelect'>
+			<p style='display:inline'><b> start: </b></p>
+			<input id='startHH' size="2" type='number' value="0">hr :
+			<input id='startMM' size="2" type='number' value="0">min :
+			<input id='startSS' size="2" type='number' value="0">sec
+		</div>
+		
+		<div class='rangeSelect'>
+			<p style='display:inline'><b> end: </b></p>
+			<input id='endHH' size="2" type='number' value="0">hr :
+			<input id='endMM' size="2" type='number' value="5">min :
+			<input id='endSS' size="2" type='number' value="0">sec
+		</div>
+		
 	</div>
 	
 	<div id='content'>

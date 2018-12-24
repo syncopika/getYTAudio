@@ -5,25 +5,21 @@
 // https://developer.chrome.com/extensions/devtools
 // https://developer.chrome.com/extensions/devtools_network
 // https://stackoverflow.com/questions/14281234/chrome-extension-that-focuses-items-in-elements-panel
-// ~ 18328 bytes per second of audio? 
 
+// ~ 18328 bytes per second of audio? this is just an approximation.
+// default values
+var start = 0;
+var end = 9999999;
+var bytesPerSec = 18300;
 
 chrome.devtools.panels.create("My Panel",
 	"icon128.png",
 	"devtools.html",
 	function(panel){
 
-		// CREATE A BUTTON WITH AN EVENTLISTENER FOR CLICK 
-		// ON CLICK, COLLECT THE AUDIO LINK AND DO THE MATH STUFF TO FIGURE OUT START AND END 
-		// RETURN CORRECTED URL 
-		// HAVE A COUPLE TEXT BOXES SPECIFYING RANGE OF AUDIO FILE TO SAVE?
-		// next steps: can we directly get the audio data bytes via XHR? 
-		
-		var button = document.createElement('button');
-		button.innerHTML = "get audio link";
+		// next steps: can we directly get the audio data bytes via XHR? 		
+		var button = document.getElementById('getAudioLink');
 		button.addEventListener("click", getAudioLink);
-		document.getElementById('header').appendChild(button);
-		
 	}
 
 );
@@ -57,7 +53,13 @@ function getAudioLink(){
 				el.innerHTML = "there are " + harLog.entries.length + " entries in the HAR log.";
 				content.appendChild(el);
 				
+				var count = 5; // just limit to 5 valid entries in the HAR log for now 
 				for(var i = 0; i < harLog.entries.length; i++){
+					
+					if(count < 0){
+						return;
+					}
+					
 					// files could be of mp4 or webm type! just make sure they're requests for audio 
 					if(harLog.entries[i].request.url.indexOf("mime=audio") > 0){
 						
@@ -68,17 +70,48 @@ function getAudioLink(){
 						content.appendChild(url);
 						
 						// use regex to correct the start and end numbers to get the whole audio 
+						// adjust start and end vars accordingly based on the current input fields.
+						// need to make sure they're reasonable numbers as well 
+						var duration = result.split(':');
+		
+						// get total seconds of video 
+						var durationSeconds = 0;
+						for(var j = duration.length-1; j >= 0; j--){
+							// going backwards, from seconds to hours (or minutes if no hours)
+							durationSeconds += (parseInt(duration[j])*Math.pow(60, duration.length-1-j));
+						}
+						console.log(durationSeconds);
+					
+						// get the user-specified start and end times 
+						var startH =  parseInt(document.getElementById('startHH').value)*3600;
+						var startM = parseInt(document.getElementById('startMM').value)*60;
+						var startS = parseInt(document.getElementById('startSS').value);
+						var inputStartTime = ((startH + startM + startS) < durationSeconds && ((startH + startM + startS) >= 0)) ? (startH + startM + startS) : 0;
+						console.log(inputStartTime);
+						
+						var endH =  parseInt(document.getElementById('endHH').value)*3600;
+						var endM = parseInt(document.getElementById('endMM').value)*60;
+						var endS = parseInt(document.getElementById('endSS').value);
+						var inputEndTime = ((endH + endM + endS) <= durationSeconds && (endH + endM + endS) > inputStartTime) ? (endH + endM + endS) : 540; // 540 = 9999999 / 18500
+						console.log(inputEndTime);
+						
+						start = inputStartTime * bytesPerSec;
+						end = inputEndTime * bytesPerSec;
+						
 						var regex = /range=[0-9]+-[0-9]+/g;
-						var start = 0;
-						var end = 9999999;
 						var newRange = "range=" + start + "-" + end; 
 						var newURL = requestURL.replace(regex, newRange);
 						
 						var modifiedURL = document.createElement('p');
 						modifiedURL.innerHTML = newURL;
 						content.appendChild(modifiedURL);
+						
+						var inputStartEnd = document.createElement('p');
+						inputStartEnd.innerHTML = "start byte: " + start + ", end byte: " + end;
+						content.appendChild(inputStartEnd);
 
 						flag = true;
+						count--;
 					}
 				}
 				
@@ -91,6 +124,7 @@ function getAudioLink(){
 				var videoDuration = document.createElement('p');
 				videoDuration.innerHTML = "video duration: " + result;
 				content.appendChild(videoDuration);
+				
 				
 			}); // end getHAR
 			
