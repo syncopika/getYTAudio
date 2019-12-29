@@ -230,9 +230,11 @@ function readEBMLInfo(buffer){
 	info["samplingFrequency"] = buffer.slice(newPos, newPos+1);
 	info["samplingFrequency_length"] = getElementLength(newPos+1, buffer);
 	let sampleFreqLen = varIntBinToDec(hexToBin(info["samplingFrequency_length"]));
+	
 	info["samplingFrequency_value"] = buffer.slice(
 		newPos+1+info["samplingFrequency_length"].length,
-		newPos+1+info["samplingFrequency_length"].length+sampleFreqLen).toString();
+		newPos+1+info["samplingFrequency_length"].length+sampleFreqLen
+	).toString();
 	
 	newPos = newPos+1+info["samplingFrequency_length"].length+sampleFreqLen;
 	info["channels"] = buffer.slice(newPos, newPos+1);
@@ -240,7 +242,8 @@ function readEBMLInfo(buffer){
 	let channelLen = varIntBinToDec(hexToBin(info["channels_length"]));
 	info["channels_value"] = buffer.slice(
 		newPos+1+info["channels_length"].length,
-		newPos+1+info["channels_length"].length+channelLen);
+		newPos+1+info["channels_length"].length+channelLen
+	);
 	
 	/* channels should just be converted straight to decimal from its binary I think?
 	console.log(
@@ -254,14 +257,30 @@ function readEBMLInfo(buffer){
 	newPos = newPos+1+info["channels_length"].length+channelLen;
 	info["bitdepth"] = buffer.slice(newPos, newPos+2);
 	info["bitdepth_length"] = getElementLength(newPos+2, buffer);
+	let bitdepthLen = varIntBinToDec(hexToBin(info["bitdepth_length"]));
+	
+	// next is the Cueing Data section 
+	newPos = newPos+2+info["bitdepth_length"].length+bitdepthLen;
+	info["cueingData"] = buffer.slice(newPos, newPos+4);
+	info["cueingData_length"] = getElementLength(newPos+4, buffer);
+	let cueingDataLength = varIntBinToDec(hexToBin(info["cueingData_length"]));
+	//console.log(cueingDataLength);
 	
 	// find simpleblock for data 
+	newPos = newPos + 4 + info["cueingData_length"].length + cueingDataLength;
+	info["cluster"] = buffer.slice(newPos, newPos+4);
+	info["cluster_length"] = getElementLength(newPos+4, buffer);
+	console.log(varIntBinToDec(hexToBin(info["cluster_length"])));
 	
-	
+	// can reach simpleblock now (look for A3)
+	// dunno what to do with the data once I get it though?
+	// I think ogg containers can hold opus-encoded audio data, but I don't think 
+	// I can just stick this data in an ogg container, but even if I could I'd have to 
+	// create the container first?
 	return info;
 }
 
-// paass pos of first byte of length for an element
+// pass pos of first byte of length for an element
 // gets a slice of the buffer that represents all the bytes that represent
 // the length of an element 
 function getElementLength(pos, buffer){

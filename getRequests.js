@@ -12,7 +12,7 @@ var start = 0;
 var end = 9999999;
 var bytesPerSec = 18300;
 
-chrome.devtools.panels.create("My Panel",
+chrome.devtools.panels.create("GetYTAudio",
 	"icon128.png",
 	"devtools.html",
 	function(panel){
@@ -20,10 +20,36 @@ chrome.devtools.panels.create("My Panel",
 		// next steps: can we directly get the audio data bytes via XHR? 		
 		var button = document.getElementById('getAudioLink');
 		button.addEventListener("click", getAudioLink);
+		
+		var clearButton = document.getElementById('clear');
+		clearButton.addEventListener("click", clear);
 	}
 
 );
 
+function clear(){
+	var content = document.getElementById('content');
+	while(content.firstChild){
+		content.removeChild(content.firstChild);
+	}
+}
+
+function download(name, fileUrl){
+	chrome.tabs.create({url: fileUrl}, function(tab){
+		// execute content script for the tab 
+		// cool techniques for passing vars!
+		// https://stackoverflow.com/questions/17567624/pass-a-parameter-to-a-content-script-injected-using-chrome-tabs-executescript
+		chrome.tabs.executeScript(tab.id, {
+			code: "var name = '" + name + "'; var fileUrl = '" + fileUrl + "'"
+		}, function(){
+			// execute function to grab audio
+			chrome.tabs.executeScript(tab.id, {file: "downloadAudio.js"}, function(){
+				// close the tab
+				chrome.tabs.remove(tab.id);
+			});
+		});
+	});
+}
 
 function getAudioLink(){
 	
@@ -67,7 +93,7 @@ function getAudioLink(){
 						
 						var url = document.createElement('p');
 						url.innerHTML = requestURL;
-						content.appendChild(url);
+						//content.appendChild(url);
 						
 						// use regex to correct the start and end numbers to get the whole audio 
 						// adjust start and end vars accordingly based on the current input fields.
@@ -80,7 +106,7 @@ function getAudioLink(){
 							// going backwards, from seconds to hours (or minutes if no hours)
 							durationSeconds += (parseInt(duration[j])*Math.pow(60, duration.length-1-j));
 						}
-						console.log(durationSeconds);
+						//console.log(durationSeconds);
 					
 						// get the user-specified start and end times 
 						var startH =  parseInt(document.getElementById('startHH').value)*3600;
@@ -105,6 +131,15 @@ function getAudioLink(){
 						var modifiedURL = document.createElement('p');
 						modifiedURL.innerHTML = newURL;
 						content.appendChild(modifiedURL);
+						
+						var downloadButton = document.createElement('button');
+						downloadButton.innerHTML = "download this link";
+						downloadButton.addEventListener("click", (function(name, fileUrl){
+							return function(){
+								download(name, fileUrl);
+							};
+						})("music", newURL));
+						content.appendChild(downloadButton);
 						
 						var inputStartEnd = document.createElement('p');
 						inputStartEnd.innerHTML = "start byte: " + start + ", end byte: " + end;
