@@ -34,6 +34,11 @@ function clear(){
 	}
 }
 
+
+function checkLink(fileUrl){
+	chrome.tabs.create({url: fileUrl});
+}
+
 function download(name, fileUrl){
 	chrome.tabs.create({url: fileUrl}, function(tab){
 		// execute content script for the tab 
@@ -131,6 +136,14 @@ function getAudioLink(){
 						var modifiedURL = document.createElement('p');
 						modifiedURL.innerHTML = newURL;
 						content.appendChild(modifiedURL);
+						
+						var checkLinkButton = document.createElement('button');
+						checkLinkButton.innerHTML = "check this link";
+						checkLinkButton.addEventListener("click", function(evt){
+							// check out the link
+							checkLink(newURL);
+						});
+						content.appendChild(checkLinkButton);
 						
 						var downloadButton = document.createElement('button');
 						downloadButton.innerHTML = "download this link";
