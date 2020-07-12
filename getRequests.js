@@ -16,15 +16,13 @@ chrome.devtools.panels.create("GetYTAudio",
 	"icon128.png",
 	"devtools.html",
 	function(panel){
-
-		// next steps: can we directly get the audio data bytes via XHR? 		
+	
 		var button = document.getElementById('getAudioLink');
 		button.addEventListener("click", getAudioLink);
 		
 		var clearButton = document.getElementById('clear');
 		clearButton.addEventListener("click", clear);
 	}
-
 );
 
 function clear(){
@@ -148,7 +146,7 @@ function getAudioLink(){
 						var downloadButton = document.createElement('button');
 						downloadButton.innerHTML = "download this link";
 						downloadButton.addEventListener("click", (function(name, fileUrl){
-							return function(){
+							return function(evt){
 								download(name, fileUrl);
 							};
 						})("music", newURL));
