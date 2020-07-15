@@ -137,10 +137,12 @@ function getAudioLink(){
 						
 						var checkLinkButton = document.createElement('button');
 						checkLinkButton.innerHTML = "check this link";
-						checkLinkButton.addEventListener("click", function(evt){
+						checkLinkButton.addEventListener("click", (function(fileUrl){
 							// check out the link
-							checkLink(newURL);
-						});
+							return function(evt){
+								checkLink(fileUrl);
+							};
+						})(newURL));
 						content.appendChild(checkLinkButton);
 						
 						var downloadButton = document.createElement('button');
