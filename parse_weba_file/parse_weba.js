@@ -7,6 +7,7 @@
 // https://www.matroska.org/technical/specs/index.html
 // weba files are actually webm files! so since not matroska file, we look at doctype field (0x81 0x04 for webm)
 // super helpful: https://www.darkcoding.net/software/reading-mediarecorders-webm-opus-output/
+// https://www.matroska.org/technical/diagram.html
 
 // https://www.webmproject.org/docs/container/
 // https://stackoverflow.com/questions/57534783/how-to-reconstruct-audio-blob-from-a-base64-encoded-string
@@ -16,7 +17,7 @@
 // https://github.com/cellar-wg/ebml-specification/blob/master/specification.markdown#vint-examples
 // https://forum.videohelp.com/threads/394117-Extracting-audio-losslessly-with-ffmpeg-or-mkvextract
 
-let theFile = "wonderfulslipperything-guthriegovan.weba";
+let theFile = "darkcoding-webm-ebml.webm"; // https://www.darkcoding.net/software/reading-mediarecorders-webm-opus-output/
 let fs = require("fs");
 let stats = fs.statSync(theFile);
 let fileSizeInBytes = stats["size"];
@@ -69,9 +70,12 @@ function varIntBinToDec(binStr){
 }
 
 // testing
+console.log("testing ----------");
 console.log(varIntBinToDec("0101")); // expect 1
 console.log(varIntBinToDec("00000011")); // expect 1
 console.log(varIntBinToDec("00100011")); // expect 3
+console.log(varIntBinToDec("10011111")); // expect 31
+console.log("---------------")
 
 function additionalOctetCount(binStr){
 	// check binary string. number of consecutive leading 0s will determine how many additional octets
@@ -114,6 +118,106 @@ const EBMLElements = {
 	"9f": "header_length"
 }
 
+// the keys and all the children keys are ebml elements!
+// so: id, length, value is the order of info
+// note that length might be 2 bytes and not just 1, depending on the first byte
+const EBMLTopLevelElements = {
+	"SeekHead": {
+		"id": "114d9b74",
+		"children": {
+			"Seek": "4dbb",
+			"SeekID": "53ab",
+			"SeekPosition": "53ac"
+		}
+	},
+	"Info": {
+		"id": "1549a966",
+		"children": {
+			"SegmentUID": "73a4",
+			"SegmentFilename": "7384"
+		}
+	},
+	"Tracks": {
+		"id": "1654ae6b",
+		"children": {}
+	},
+	"Chapters": {
+		"id": "1043a770",
+		"children": {}
+	},
+	"Cluster": {
+		"id": "1f4b675",
+		"children": {
+			"Timestamp": "e7",
+			"SilentTracks": "5854",
+			"Position": "a7",
+			"PrevSize": "ab",
+			"SimpleBlock": "a3",
+			"BlockGroup": "a0"
+		}
+	},
+	"Cues": {
+		"id": "1c53bb6b",
+		"children": {}
+	},
+	"Attachments": {
+		"id": "1941a469",
+		"children": {}
+	},
+	"Tags": {
+		"id": "1254c367",
+		"children": {}
+	}
+}
+
+function getElement(bufferSlice, topLevelElements, info){
+	for(let element in topLevelElements){
+		if(topLevelElements[element].id === bufferSlice.toString('hex')){
+			info[element] = bufferSlice.toString('hex');
+		}
+	}
+}
+
+function parseWebm(buffer){
+	let info = {};
+	
+	// this is all header stuff
+	info["header"] = buffer.slice(0,4); //1a45dfa3
+	info["headerLength"] = buffer.slice(4,5); // 9f
+	info["version_element"] = buffer.slice(5,7); // 4286
+	info["length"] = buffer.slice(7,8); // 81
+	info["value"] = buffer.slice(8,9); // 01
+	
+	info["readversion_element"] = buffer.slice(9,11);
+	info["readversion_length"] = buffer.slice(11,12);
+	info["readversion_value"] = buffer.slice(12,13);
+	
+	info["maxid_element"] = buffer.slice(13,15);
+	info["maxid_length"] = buffer.slice(15,16);
+	info["maxid_value"] = buffer.slice(16,17);
+	
+	info["maxsize_element"] = buffer.slice(17,19);
+	info["maxsize_length"] = buffer.slice(19,20);
+	info["maxsize_value"] = buffer.slice(20,21);
+	
+	info["doctype_element"] = buffer.slice(21,23);
+	info["doctype_length"] = buffer.slice(23,24);
+	info["doctype_value"] = buffer.slice(24,28); // this is bad, but assume 4 bytes
+	
+	// now we get into the segment
+	let nextPos = 36; // 36 because 4 + 1 + 31 for the EBML header.
+	info["segment"] = buffer.slice(nextPos, nextPos+4);
+	info["segment_length"] = getElementLength(nextPos+4, buffer);
+	
+	let nextElementPos = nextPos+4+info["segment_length"].length;
+	let nextElementId = buffer.slice(nextElementPos, nextElementPos+4);
+	
+	getElement(nextElementId, EBMLTopLevelElements, info);
+	//console.log(nextElementId.toString('hex'));
+	
+	return info;
+}
+
 // returns ebml info in a dictionary
 function readEBMLInfo(buffer){
 	// first 4 bytes = signify it's an ebml element 
@@ -150,7 +254,8 @@ function readEBMLInfo(buffer){
 	info["segment"] = buffer.slice(nextPos, nextPos+4);
 	info["segment_length"] = getElementLength(nextPos+4, buffer);
 	
-	// should be at segment. look for segment elements 
+	// should be at segment. look for segment elements
+	// note that there might not be a seekhead! the element is recommended but not mandatory
 	let pos = nextPos+4+info["segment_length"].length;
 	info["seekhead"] = buffer.slice(pos, pos+4);
 	info["seekhead_length"] = getElementLength(pos+4, buffer);
@@ -302,7 +407,7 @@ fs.open(theFile, 'r', (status, fd) => {
 	fs.readSync(fd, buffer, 0, fileSizeInBytes, 0);
 	
 	// read ebml header
-	let ebml = readEBMLInfo(buffer);
+	let ebml = parseWebm(buffer); //readEBMLInfo(buffer);
 	for(let key in ebml){
 		console.log(key + ": " + ebml[key].toString('hex'));
 	}

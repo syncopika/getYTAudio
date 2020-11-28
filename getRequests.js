@@ -67,6 +67,13 @@ function getAudioLink(){
 	msg.innerHTML = s;
 	content.appendChild(msg);
 	
+	var nameOfFileTextEdit = document.createElement('input');
+	nameOfFileTextEdit.setAttribute("type", "text");
+	nameOfFileTextEdit.id = "fileName";
+	nameOfFileTextEdit.style.width = "5%";
+	nameOfFileTextEdit.placeholder = "file name";
+	content.appendChild(nameOfFileTextEdit);
+	
 	// get video duration (and look through HAR log)
 	chrome.devtools.inspectedWindow.eval(
 		"(document.getElementsByClassName('ytp-time-duration')[0]).innerHTML",
@@ -147,11 +154,14 @@ function getAudioLink(){
 						
 						var downloadButton = document.createElement('button');
 						downloadButton.innerHTML = "download this link";
-						downloadButton.addEventListener("click", (function(name, fileUrl){
+						downloadButton.addEventListener("click", (function(fileUrl){
 							return function(evt){
-								download(name, fileUrl);
+								var filename = document.getElementById('fileName').value;
+								filename = (filename === "") ? "music" : filename;
+								console.log("downloading: " + filename);
+								download(filename, fileUrl);
 							};
-						})("music", newURL));
+						})(newURL));
 						content.appendChild(downloadButton);
 						
 						var inputStartEnd = document.createElement('p');
