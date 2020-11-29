@@ -21,97 +21,7 @@ let theFile = "darkcoding-webm-ebml.webm"; // https://www.darkcoding.net/softwar
 let fs = require("fs");
 let stats = fs.statSync(theFile);
 let fileSizeInBytes = stats["size"];
-console.log(fileSizeInBytes);
-
-
-function decToBinary(num){
-	let res = "";
-	let rem = num;
-	while(rem > 0){
-		let currBit = rem % 2;
-		res = currBit + res;
-		rem = Math.floor(rem / 2);
-	}
-	while(res.length % 2 !== 0 || res.length < 8){
-		res = "0" + res;
-	}
-	return res;
-}
-
-function binToDec(bin){
-	let total = 0;
-	let exponent = 0;
-	for(let i = bin.length - 1; i >= 0; i--){
-		if(bin[i] == 1){
-			total += Math.pow(2, exponent);
-		}
-		exponent++;
-	}
-	return total;
-}
-
-// convert hex to variable int value in decimal
-// hex -> binary -> truncate -> to decimal 
-// https://github.com/cellar-wg/ebml-specification/blob/master/specification.markdown#vint-examples
-function varIntBinToDec(binStr){
-	
-	// given a binary string, decide how to truncate 
-	// we need to cut out the leading 0s and the first 1 
-	let res = "";
-	let addFlag = false;
-	for(let i = 0; i < binStr.length; i++){
-		if(!addFlag && binStr[i] == 1){
-			addFlag = true;
-		}else if(addFlag){
-			res += binStr[i];
-		}
-	}
-	return binToDec(res);
-}
-
-// testing
-console.log("testing ----------");
-console.log(varIntBinToDec("0101")); // expect 1
-console.log(varIntBinToDec("00000011")); // expect 1
-console.log(varIntBinToDec("00100011")); // expect 3
-console.log(varIntBinToDec("10011111")); // expect 31
-console.log("---------------")
-
-function additionalOctetCount(binStr){
-	// check binary string. number of consecutive leading 0s will determine how many additional octets
-	if(binStr[0] == 1){
-		return 0;
-	}
-	
-	let count = 0;
-	for(let i = 1; i < binStr.length; i++){
-		if(binStr[i] == 1){
-			return count + 1;
-		}
-		count++;
-	}
-	return 0;
-}
-
-// hex to bin
-function hexToBin(hexStr){
-	let map = {
-		'a': 10,
-		'b': 11,
-		'c': 12,
-		'd': 13,
-		'e': 14,
-		'f': 15
-	}
-	let total = "";
-	for(let i = hexStr.length - 1; i >= 0; i--){
-		// get binary 
-		let num = map[hexStr[i]] ? parseInt(map[hexStr[i]]) : parseInt(hexStr[i]);
-		total = decToBinary(num) + total;
-	}
-	return total;
-}
-
+console.log("file size: " + fileSizeInBytes);
 
 const EBMLElements = {
 	"1a45dfa3": "header",
@@ -170,12 +80,153 @@ const EBMLTopLevelElements = {
 	}
 }
 
-function getElement(bufferSlice, topLevelElements, info){
-	for(let element in topLevelElements){
-		if(topLevelElements[element].id === bufferSlice.toString('hex')){
-			info[element] = bufferSlice.toString('hex');
+function decToBinary(num){
+	let res = "";
+	let rem = num;
+	while(rem > 0){
+		let currBit = rem % 2;
+		res = currBit + res;
+		rem = Math.floor(rem / 2);
+	}
+	// this ensures at least one octet in the binary string
+	while(res.length % 2 !== 0 || res.length < 8){
+		res = "0" + res;
+	}
+	return res;
+}
+
+function binToDec(bin){
+	let total = 0;
+	let exponent = 0;
+	for(let i = bin.length - 1; i >= 0; i--){
+		if(bin[i] == 1){
+			total += Math.pow(2, exponent);
+		}
+		exponent++;
+	}
+	return total;
+}
+
+// convert hex to variable int value in decimal
+// hex -> binary -> truncate -> to decimal 
+// https://github.com/cellar-wg/ebml-specification/blob/master/specification.markdown#vint-examples
+function varIntBinToDec(binStr){
+	// given a binary string, decide how to truncate 
+	// we need to cut out the leading 0s and the first 1 
+	let res = "";
+	let addFlag = false;
+	for(let i = 0; i < binStr.length; i++){
+		if(!addFlag && binStr[i] == 1){
+			addFlag = true;
+		}else if(addFlag){
+			res += binStr[i];
 		}
 	}
+	return binToDec(res);
+}
+
+// testing
+console.log("testing ----------");
+console.log(varIntBinToDec("0101")); // expect 1
+console.log(varIntBinToDec("00000011")); // expect 1
+console.log(varIntBinToDec("00100011")); // expect 3
+console.log(varIntBinToDec("10011111")); // expect 31
+console.log(varIntBinToDec("0100000110000110")); // expect 390
+console.log(varIntBinToDec(hexToBin("99"))); // expect 25
+console.log(decToBinary(9)); // expect 1001
+console.log("---------------")
+
+// hex to bin
+function hexToBin(hexStr){
+	let map = {
+		'a': 10,
+		'b': 11,
+		'c': 12,
+		'd': 13,
+		'e': 14,
+		'f': 15
+	}
+	let total = "";
+	for(let i = hexStr.length - 1; i >= 0; i--){
+		// get binary 
+		let num = map[hexStr[i]] ? parseInt(map[hexStr[i]]) : parseInt(hexStr[i]);
+		total = decToBinary(num) + total; // this is incorrect for converting hex to dec because decToBinary pads until there's an octet
+	}
+	return total;
+}
+
+function additionalOctetCount(binStr){
+	// check binary string. number of consecutive leading 0s will determine how many additional octets
+	if(binStr[0] == 1){
+		return 0;
+	}
+	
+	let count = 0;
+	for(let i = 1; i < binStr.length; i++){
+		if(binStr[i] == 1){
+			return count + 1;
+		}
+		count++;
+	}
+	return 0;
+}
+
+
+function getElement(buffer, start, end, topLevelElements, info){
+	let bufferSlice = buffer.slice(start, end);
+	for(let element in topLevelElements){
+		if(topLevelElements[element].id === bufferSlice.toString('hex')){
+			//console.log(varIntBinToDec(hexToBin(getElementLength(end, buffer).toString('hex'))));
+			info[element] = {
+				"id": ("0x" + bufferSlice.toString('hex')),
+				"length": varIntBinToDec(hexToBin(getElementLength(end, buffer).toString('hex'))), //getElementLength(end, buffer)
+			}
+		}
+	}
+}
+
+// oops, already wrote this function in a much better way a while back below lol -__-
+function getElementLength(buffer, start, end){
+	// read one byte to figure out the length
+	// if the byte as binary has a leading 0, need to read one more byte
+	// to get the length
+	// we're assuming the start and end indices of the buffer 
+	// are right after the element id
+	let firstByte = buffer.slice(start, end);
+	let byteBin = hexToBin(firstByte.toString('hex'));
+	
+	// check how many leading 0s. that'll determine how many more bytes to be
+	// read for calculating the length of the ebml element
+	if(byteBin[0] === "1"){
+		// length is just firstByte
+		return binToDec(byteBin);
+	}else{
+		let newBinStr = byteBin;
+		let numMoreBytes = byteBin.indexOf("1"); // just get index of first appearance of 1. this equals the number of leading 0s.
+		for(let i = end; i < end + numMoreBytes; i++){
+			let s = i;   // new start
+			let e = i+1; // new end
+			let newBin = hexToBin(buffer.slice(s, e).toString('hex'));
+			newBinStr += newBin;
+		}
+		// calculate the length of the ebml element with the new binary string
+		// need to throwaway the leading 1
+		newBinStr = newBinStr.replace("1", "0");
+		return binToDec(newBinStr);
+	}
+}
+
+// pass pos of first byte of length for an element
+// gets a slice of the buffer that represents all the bytes that represent
+// the length of an element 
+function getElementLength(pos, buffer){
+	let additionalOctets = additionalOctetCount(hexToBin(buffer.slice(pos, pos+1)));
+	let newPos = pos+1;
+	while(additionalOctets > 0){
+		additionalOctets--;
+		newPos++;
+	}
+	return buffer.slice(pos, newPos);
 }
 
 function parseWebm(buffer){
@@ -204,16 +255,19 @@ function parseWebm(buffer){
 	info["doctype_length"] = buffer.slice(23,24);
 	info["doctype_value"] = buffer.slice(24,28); // this is bad, but assume 4 bytes
 	
+	/*
+	for(let key in info){
+		info[key] = "0x" + info[key].toString('hex');
+	}*/
+	
 	// now we get into the segment
 	let nextPos = 36; // 36 because 4 + 1 + 31 for the EBML header.
 	info["segment"] = buffer.slice(nextPos, nextPos+4);
 	info["segment_length"] = getElementLength(nextPos+4, buffer);
 	
 	let nextElementPos = nextPos+4+info["segment_length"].length;
-	let nextElementId = buffer.slice(nextElementPos, nextElementPos+4);
+	getElement(buffer, nextElementPos, nextElementPos+4, EBMLTopLevelElements, info);
 	
-	getElement(nextElementId, EBMLTopLevelElements, info);
-	//console.log(nextElementId.toString('hex'));
 	
 	return info;
 }
@@ -385,18 +439,6 @@ function readEBMLInfo(buffer){
 	return info;
 }
 
-// pass pos of first byte of length for an element
-// gets a slice of the buffer that represents all the bytes that represent
-// the length of an element 
-function getElementLength(pos, buffer){
-	let additionalOctets = additionalOctetCount(hexToBin(buffer.slice(pos, pos+1)));
-	let newPos = pos+1;
-	while(additionalOctets > 0){
-		additionalOctets--;
-		newPos++;
-	}
-	return buffer.slice(pos, newPos);
-}
 
 fs.open(theFile, 'r', (status, fd) => {
 	if(status){
@@ -408,8 +450,6 @@ fs.open(theFile, 'r', (status, fd) => {
 	
 	// read ebml header
 	let ebml = parseWebm(buffer); //readEBMLInfo(buffer);
-	for(let key in ebml){
-		console.log(key + ": " + ebml[key].toString('hex'));
-	}
+	console.log(ebml);
 	
 });
