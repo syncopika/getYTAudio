@@ -67,6 +67,11 @@ function getAudioLink(){
 	msg.innerHTML = s;
 	content.appendChild(msg);
 	
+	var label = document.createElement('label');
+	label.textContent = "file name for download: ";
+	label.setAttribute('for', 'fieldName');
+	content.appendChild(label);
+	
 	var nameOfFileTextEdit = document.createElement('input');
 	nameOfFileTextEdit.setAttribute("type", "text");
 	nameOfFileTextEdit.id = "fileName";
