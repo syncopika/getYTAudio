@@ -4,10 +4,10 @@
 // https://matroska.org/technical/specs/notes.html
 
 // these are most helpful:
+// https://www.darkcoding.net/software/reading-mediarecorders-webm-opus-output/
+// https://www.matroska.org/technical/diagram.html
 // https://www.matroska.org/technical/specs/index.html
 // weba files are actually webm files! so since not matroska file, we look at doctype field (0x81 0x04 for webm)
-// super helpful: https://www.darkcoding.net/software/reading-mediarecorders-webm-opus-output/
-// https://www.matroska.org/technical/diagram.html
 
 // https://www.webmproject.org/docs/container/
 // https://stackoverflow.com/questions/57534783/how-to-reconstruct-audio-blob-from-a-base64-encoded-string
@@ -32,31 +32,31 @@ const EBMLElements = {
 // so: id, length, value is the order of info
 // note that length might be 2 bytes and not just 1, depending on the first byte
 const EBMLTopLevelElements = {
-	"SeekHead": {
-		"id": "114d9b74",
+	"114d9b74": {
+		"name": "SeekHead",
 		"children": {
 			"Seek": "4dbb",
 			"SeekID": "53ab",
 			"SeekPosition": "53ac"
 		}
 	},
-	"Info": {
-		"id": "1549a966",
+	"1549a966": {
+		"name": "Info",
 		"children": {
 			"SegmentUID": "73a4",
 			"SegmentFilename": "7384"
 		}
 	},
-	"Tracks": {
-		"id": "1654ae6b",
+	"1654ae6b": {
+		"name": "Tracks",
 		"children": {}
 	},
-	"Chapters": {
-		"id": "1043a770",
+	"1043a770": {
+		"name": "Chapters",
 		"children": {}
 	},
-	"Cluster": {
-		"id": "1f4b675",
+	"1f4b675": {
+		"name": "Cluster",
 		"children": {
 			"Timestamp": "e7",
 			"SilentTracks": "5854",
@@ -66,16 +66,16 @@ const EBMLTopLevelElements = {
 			"BlockGroup": "a0"
 		}
 	},
-	"Cues": {
-		"id": "1c53bb6b",
+	"1c53bb6b": {
+		"name": "Cues",
 		"children": {}
 	},
-	"Attachments": {
-		"id": "1941a469",
+	"1941a469": {
+		"name": "Attachments",
 		"children": {}
 	},
-	"Tags": {
-		"id": "1254c367",
+	"1254c367": {
+		"id": "Tags",
 		"children": {}
 	}
 }
@@ -89,9 +89,15 @@ function decToBinary(num){
 		rem = Math.floor(rem / 2);
 	}
 	// this ensures at least one octet in the binary string
-	while(res.length % 2 !== 0 || res.length < 8){
+	//while(res.length % 2 !== 0 || res.length < 8){
+	//	res = "0" + res;
+	//}
+	
+	// make sure 4 bits since for our purposes we're always working with hex nums
+	while(res.length < 4){
 		res = "0" + res;
 	}
+	
 	return res;
 }
 
@@ -133,7 +139,11 @@ console.log(varIntBinToDec("00100011")); // expect 3
 console.log(varIntBinToDec("10011111")); // expect 31
 console.log(varIntBinToDec("0100000110000110")); // expect 390
 console.log(varIntBinToDec(hexToBin("99"))); // expect 25
+console.log(varIntBinToDec(hexToBin("9f"))); // expect 31
 console.log(decToBinary(9)); // expect 1001
+console.log(decToBinary(0)); // expect 0000
+console.log(hexToBin("01")); // expect 00000001
+console.log(additionalOctetCount("00000001")); // expect 7
 console.log("---------------")
 
 // hex to bin
@@ -150,7 +160,7 @@ function hexToBin(hexStr){
 	for(let i = hexStr.length - 1; i >= 0; i--){
 		// get binary 
 		let num = map[hexStr[i]] ? parseInt(map[hexStr[i]]) : parseInt(hexStr[i]);
-		total = decToBinary(num) + total; // this is incorrect for converting hex to dec because decToBinary pads until there's an octet
+		total = decToBinary(num) + total;
 	}
 	return total;
 }
@@ -174,18 +184,22 @@ function additionalOctetCount(binStr){
 
 function getElement(buffer, start, end, topLevelElements, info){
 	let bufferSlice = buffer.slice(start, end);
-	for(let element in topLevelElements){
-		if(topLevelElements[element].id === bufferSlice.toString('hex')){
-			//console.log(varIntBinToDec(hexToBin(getElementLength(end, buffer).toString('hex'))));
-			info[element] = {
-				"id": ("0x" + bufferSlice.toString('hex')),
-				"length": varIntBinToDec(hexToBin(getElementLength(end, buffer).toString('hex'))), //getElementLength(end, buffer)
-			}
+	console.log(bufferSlice);
+	if(topLevelElements[bufferSlice.toString('hex')] !== undefined){
+		//console.log(varIntBinToDec(hexToBin(getElementLength(end, buffer).toString('hex'))));
+		const topLevelElementName = topLevelElements[bufferSlice.toString('hex')].name;
+		info[topLevelElementName] = {
+			"id": ("0x" + bufferSlice.toString('hex')),
+			"length": varIntBinToDec(hexToBin(getElementLength(end, buffer).toString('hex'))), // length of an element's content
+			"lengthNumBytes": getElementLength(end, buffer).length, // the number of bytes to represent the length
 		}
+		return info[topLevelElementName];
+	}else{
+		return null;
 	}
 }
 
-// oops, already wrote this function in a much better way a while back below lol -__-
+/* oops, already wrote this function in a much better way a while back below lol -__-
 function getElementLength(buffer, start, end){
 	// read one byte to figure out the length
 	// if the byte as binary has a leading 0, need to read one more byte
@@ -214,13 +228,13 @@ function getElementLength(buffer, start, end){
 		newBinStr = newBinStr.replace("1", "0");
 		return binToDec(newBinStr);
 	}
-}
+}*/
 
 // pass pos of first byte of length for an element
 // gets a slice of the buffer that represents all the bytes that represent
 // the length of an element 
 function getElementLength(pos, buffer){
-	let additionalOctets = additionalOctetCount(hexToBin(buffer.slice(pos, pos+1)));
+	let additionalOctets = additionalOctetCount(hexToBin(buffer.slice(pos, pos+1).toString('hex')));
 	let newPos = pos+1;
 	while(additionalOctets > 0){
 		additionalOctets--;
@@ -265,9 +279,21 @@ function parseWebm(buffer){
 	info["segment"] = buffer.slice(nextPos, nextPos+4);
 	info["segment_length"] = getElementLength(nextPos+4, buffer);
 	
-	let nextElementPos = nextPos+4+info["segment_length"].length;
-	getElement(buffer, nextElementPos, nextElementPos+4, EBMLTopLevelElements, info);
+	// note that the length here is the number of bytes that make up the length of the element (not the actual total length of the element itself)
+	// there isn't an additional number to add (i.e. the acutal length of the element) in this case other than the 4 bytes for the header and the num of bytes
+	// that represent the element's length because this is the segment element, which contains the top-level elements.
+	let nextElementPos = nextPos + 4 + info["segment_length"].length;
+	let nextElement = getElement(buffer, nextElementPos, nextElementPos+4, EBMLTopLevelElements, info);
 	
+	for(let i = 0; i < 4; i++){
+		console.log(nextElement);
+		console.log(nextElementPos);
+		if(nextElement === null){
+			break;
+		}
+		nextElementPos += (nextElement.length + 4 + nextElement.lengthNumBytes);
+		nextElement = getElement(buffer, nextElementPos, nextElementPos+4, EBMLTopLevelElements, info);
+	}
 	
 	return info;
 }
@@ -449,7 +475,13 @@ fs.open(theFile, 'r', (status, fd) => {
 	fs.readSync(fd, buffer, 0, fileSizeInBytes, 0);
 	
 	// read ebml header
-	let ebml = parseWebm(buffer); //readEBMLInfo(buffer);
+	let ebml = parseWebm(buffer);
 	console.log(ebml);
+	
+	//let ebml = readEBMLInfo(buffer);
+	//console.log(ebml);
+	
+	// TODO: readEBMLInfo is messed up because the top level elements could be in any order!
+	// used the top level elements object to figure out what the current top level element is.
 	
 });
