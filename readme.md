@@ -17,7 +17,7 @@ There's also a parse_weba.js file and an example .weba file (.weba is another po
     
 instructions:    
 - load the extension.    
-- open up developer tools (the inspector window) and click on the tab that says "getYTAudio". for some reason, at the time of this writing, the panel doesn't show up when you're already on YouTube.    
+- open up developer tools (the inspector window) and click on the tab that says "getYTAudio".    
 - go to the YouTube video that has the audio you're interested in.      
 - click on the 'get audio link' button whenever you feel like it. if it doesn't yield any links, try clicking again and/or refreshing the page.    
 - the links should lead you to an audio player, from which you can download the audio you wanted! sometimes you'll get the audio for any preceding commercials, so you can use the 'check this link' button before downloading!    
