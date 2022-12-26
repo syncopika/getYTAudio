@@ -32,12 +32,130 @@ function clear(){
 	}
 }
 
-
 function checkLink(fileUrl){
 	chrome.tabs.create({url: fileUrl});
 }
 
+function writeStringToWav(dataViewObj, offset, string){
+	for(let i = 0; i < string.length; i++){
+		dataViewObj.setUint8(offset + i, string.charCodeAt(i));
+	}
+}
+
+function interleave(leftChan, rightChan){
+	const len = leftChan.length + rightChan.length;
+	const buf = new Float32Array(len);
+	
+	let index = 0;
+	let chanIndex = 0;
+	
+	while(index < len){
+		buf[index++] = leftChan[chanIndex];
+		buf[index++] = rightChan[chanIndex];
+		chanIndex++;
+	}
+	
+	return buf;
+}
+
+function floatTo16BitPCM(dataViewObj, offset, input){
+	for(let i = 0; i < input.length; i++, offset += 2){
+		const s = Math.max(-1, Math.min(1, input[i]));
+		dataViewObj.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+	}
+}
+
+function toWAV(audioBuffer){
+	const numChannels = audioBuffer.numberOfChannels;
+	const sampleRate = audioBuffer.sampleRate;
+	
+	let audioDataBuf;
+	if(numChannels === 2){
+		audioDataBuf = interleave(audioBuffer.getChannelData(0), audioBuffer.getChannelData(1));
+	}else{
+		audioDataBuf = audioBuffer.getChannelData(0);
+	}
+	
+	// note: assuming a bitDepth of 16 and so 2 bytes per sample
+	const bytesPerSample = 2;
+	const blockAlign = numChannels * bytesPerSample;
+	
+	const wavBuffer = new ArrayBuffer(44 + audioDataBuf.length * bytesPerSample); // 44 for wav header 
+	const view = new DataView(wavBuffer);
+	
+	writeStringToWav(view, 0, 'RIFF');
+	view.setUint32(4, 36 + audioDataBuf.length * bytesPerSample, true);
+	writeStringToWav(view, 8, 'WAVE');
+	writeStringToWav(view, 12, 'fmt ');
+	view.setUint32(16, 16, true); // format chunk length
+	view.setUint16(20, 1, true);  // sample format 
+	view.setUint16(22, numChannels, true);
+	view.setUint32(24, sampleRate, true);
+	view.setUint32(28, sampleRate * blockAlign, true); // byte rate
+	view.setUint16(32, blockAlign, true);
+	view.setUint16(34, 16, true); // bits per sample
+	writeStringToWav(view, 36, 'data');
+	view.setUint32(40, audioDataBuf.length * 2, true);
+	floatTo16BitPCM(view, 44, audioDataBuf);
+	
+	return view;
+}
+
+function showInProgress(){
+	const cover = document.createElement('div');
+	cover.id = 'inProgress';
+	cover.style.backgroundColor = 'rgba(204, 12, 0, 0.5)'; // red color
+	cover.style.position = 'fixed';
+	cover.style.top = 0;
+	cover.style.left = 0;
+	cover.style.width = '100%';
+	cover.style.height = '100%';
+	cover.style.textAlign = 'center';
+	cover.style.zIndex = 10;
+	
+	const msg = document.createElement('h1');
+	msg.textContent = 'audio download in progress....';
+	msg.style.fontFamily = 'monospace';
+	
+	cover.appendChild(msg);
+	
+	document.body.appendChild(cover);
+}
+
+function hideInProgress(){
+	const inProgress = document.getElementById('inProgress');
+	if(inProgress){
+		document.body.removeChild(inProgress);
+	}
+}
+
 function download(name, fileUrl){
+	// download audio data via decodeAudioData() as wav file
+	// https://stackoverflow.com/questions/10040317/getting-raw-pcm-data-from-webaudio-mozaudio/10067038#10067038
+	// https://github.com/WebAudio/web-audio-api/issues/1563
+	// https://github.com/Jam3/audiobuffer-to-wav/blob/master/demo/index.js
+	showInProgress();
+	fetch(fileUrl).then(async (response) => {
+		const arrayBuf = await response.arrayBuffer();
+		
+		const audioCtx = new AudioContext();
+		const pcmData = await audioCtx.decodeAudioData(arrayBuf);
+		
+		const wav = toWAV(pcmData);
+		
+		const wavBlob = new Blob([wav], {type: 'audio/wav'});
+		
+		const blobUrl = URL.createObjectURL(wavBlob);
+		const anchorEl = document.createElement('a');
+		anchorEl.href = blobUrl;
+		anchorEl.download = `${name}.wav`;
+		anchorEl.click();
+		URL.revokeObjectURL(blobUrl);
+		hideInProgress();
+	});
+	
+	// if you want the file as webm, use the below code
+	/*
 	chrome.tabs.create({url: fileUrl}, function(tab){
 		// execute content script for the tab 
 		// cool techniques for passing vars!
@@ -51,11 +169,10 @@ function download(name, fileUrl){
 				chrome.tabs.remove(tab.id);
 			});
 		});
-	});
+	});*/
 }
 
 function getAudioLink(){
-	
 	// clear the current stuff in the content div
 	var content = document.getElementById('content');
 	while(content.hasChildNodes()){
@@ -192,9 +309,7 @@ function getAudioLink(){
 			}); // end getHAR
 			
 		} // end callback 
-		
 	);
-
 	
 }
 
