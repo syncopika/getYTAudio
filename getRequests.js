@@ -269,7 +269,14 @@ function getAudioLink(){
 						checkLinkButton.addEventListener("click", (function(fileUrl){
 							// check out the link
 							return function(evt){
-								checkLink(fileUrl);
+								// modify url if there are other params like ump, which cause a download of a 'videoplayback' file
+								// instead of playing the audio in the tab
+								if(fileUrl.indexOf('&ump')){
+									var modifiedUrl = fileUrl.substring(0, fileUrl.indexOf('&ump')-1);
+									checkLink(modifiedUrl);
+								}else{
+									checkLink(fileUrl);
+								}
 							};
 						})(newURL));
 						content.appendChild(checkLinkButton);
@@ -281,7 +288,17 @@ function getAudioLink(){
 								var filename = document.getElementById('fileName').value;
 								filename = (filename === "") ? "music" : filename;
 								console.log("downloading: " + filename);
-								download(filename, fileUrl);
+
+								// as of 6/11/23 I noticed a couple new query params added, i.e. &ump=1&srfvp=1.
+								// these are appended after rbuf and for some reason cause a download of a file called
+								// 'videoplayback' when navigating to the url with those params.
+								// removing those params seems to help.
+								if(fileUrl.indexOf('&ump')){
+									var modifiedUrl = fileUrl.substring(0, fileUrl.indexOf('&ump')-1);
+									download(filename, modifiedUrl);
+								}else{
+									download(filename, fileUrl);
+								}
 							};
 						})(newURL));
 						content.appendChild(downloadButton);
